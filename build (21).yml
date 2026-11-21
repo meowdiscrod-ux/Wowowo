@@ -1,0 +1,38 @@
+# Put this file at: .github/workflows/build.yml
+# Put mochi-project.tar.xz in the repo root. The whole project is packed inside it.
+name: Build Mochi
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unpack project
+        run: |
+          tar -xJf mochi-project.tar.xz
+          chmod +x mochi-source/gradlew
+          ls mochi-source
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build jar
+        working-directory: mochi-source
+        run: ./gradlew build --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mochi-jar
+          path: |
+            mochi-source/build/libs/*.jar
+            !mochi-source/build/libs/*-sources.jar
+          if-no-files-found: error
