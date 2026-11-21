@@ -1,0 +1,51 @@
+# Put this file at: .github/workflows/build.yml
+# Upload mochi-project.zip (or .tar.xz) anywhere in the repo.
+name: Build Mochi
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unpack project
+        run: |
+          echo "Files in repo:"
+          find . -path ./.git -prune -o -type f -print | head -50
+          ARCHIVE=$(find . -path ./.git -prune -o -type f \( -iname '*.zip' -o -iname '*.tar.xz' -o -iname '*.txz' \) -print | head -1)
+          if [ -z "$ARCHIVE" ]; then
+            echo "::error::No .zip or .tar.xz archive found in the repo. Upload mochi-project.zip first."
+            exit 1
+          fi
+          echo "Using $ARCHIVE"
+          mkdir -p "$RUNNER_TEMP/src"
+          case "$ARCHIVE" in
+            *.zip|*.ZIP) unzip -q "$ARCHIVE" -d "$RUNNER_TEMP/src" ;;
+            *) tar -xJf "$ARCHIVE" -C "$RUNNER_TEMP/src" ;;
+          esac
+          PROJECT=$(dirname "$(find "$RUNNER_TEMP/src" -name gradlew | head -1)")
+          echo "PROJECT=$PROJECT" >> "$GITHUB_ENV"
+          chmod +x "$PROJECT/gradlew"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build jar
+        working-directory: ${{ env.PROJECT }}
+        run: ./gradlew build --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mochi-jar
+          path: |
+            ${{ env.PROJECT }}/build/libs/*.jar
+            !${{ env.PROJECT }}/build/libs/*-sources.jar
+          if-no-files-found: error
